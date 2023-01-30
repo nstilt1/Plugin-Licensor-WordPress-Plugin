@@ -40,7 +40,7 @@ if (
                 add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
 
                 add_action('woocommerce_check_cart_items', 'pluginlicensor_validate_cart');
-                add_action('woocommerce_thankyou', 'plugin_licensor_payment_complete');
+                add_action('woocommerce_thankyou', 'pluginlicensor_payment_complete');
             }
 
             function pluginlicensor_validate_cart() {
@@ -69,6 +69,42 @@ if (
                             );
                         }
                     }
+                }
+            }
+
+            /**
+             * Get the license codes for the order
+             * @param mixed $order_id
+             * @return string license code
+             */
+            function pluginlicensor_get_license ( $order_id ) {
+                $body = array(
+                    "company" => $this->company_id,
+                    "order_number" => $order_id,
+                    "timestamp" => time()
+                );
+                $is_success = openssl_sign($body['company'] . $body['order_number'] . $body['timestamp'], $signature, OPENSSL_ALGO_SHA256);
+                $body['signature'] = $signature;
+                $args = array(
+                    "body" => $body
+                );
+                if ( $is_success ) {
+                    $url = "https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/get_license";
+                    $response = wp_remote_post($url, $args);
+                    if ( is_wp_error( $response ) ){
+                        $error_message = $response->get_error_message();
+                        wc_add_notice( "There was an error retrieving your license code: $error_message", 'error');
+                    }else{
+                        $encrypted_license_code = $response['body'];
+                        $decrypt_success = openssl_private_decrypt($encrypted_license_code, $decrypted_license, $this->private_key);
+                        if ( $decrypt_success ) {
+                            return $decrypted_license;
+                        }else{
+                            return "Error decrypting key: $response";
+                        }
+                    }
+                }else{
+                    wc_add_notice('There was an error signing the Plugin Licensor POST request.', 'error');
                 }
             }
 
@@ -185,7 +221,7 @@ if (
                             . $body['timestamp'];
                         $is_success = openssl_sign($to_sign, $signature, $this->private_key, OPENSSL_ALGO_SHA256);
                         if (!$is_success){
-                            echo "Error signing";
+                            wc_add_notice( "There was a problem signing the Plugin Licensor POST request.", 'error');
                         }else{
                             $body['signature'] = $signature;
                             $args = array(
@@ -195,7 +231,7 @@ if (
                             $response = wp_remote_post($url, $args);
                             if ( is_wp_error( $response ) ){
                                 $error_message = $response->get_error_message();
-                                echo "There was an error processing your purchase: $error_message";
+                                wc_add_notice( "There was an error processing your purchase: $error_message", 'error');
                             }else{
                                 if ( !$has_physical_items ) {
                                     if ( $order->get_status() == 'processing' ) {
