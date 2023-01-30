@@ -82,15 +82,25 @@ if (
                 $order = wc_get_order($order_id);
                 $user = $order->get_user();
 
+                $has_physical_items = false;
+                $has_plugins = false;
+
                 // customer must have an account to own and manage licenses
                 if( $user ){
                     $total = 0;
                     $products_info = array();
                     $plugins_to_get = array();
+                    $has_physical_items = false;
                     
                     foreach ( $order->get_items() as $item_id => $item ) {
                         $plugin_licensor_id = $item->get_meta("plugin_licensor_id");
+                        
+                        if ( !wc_get_product($item->get_product_id())->is_virtual() ) {
+                            $has_physical_items = true;
+                        }
+
                         if ( $plugin_licensor_id ) {
+                            $has_plugins = true;
                             if ( !array_key_exists($plugin_licensor_id, $products_info ) ) {
                                 $products_info[$plugin_licensor_id] = array(
                                     "subtotal" => $order->get_item_total($item, false, false),
@@ -122,6 +132,48 @@ if (
                                     // It looks difficult to automatically cancel the transaction here, but if it is possible,
                                     // that would be advisable
                                 }
+                            }
+                        }
+                    }
+                    // send post request, change order status
+                    if ($has_plugins){
+                        $email = $order->get_billing_email();
+                        echo "<h3>Your license code will be delivered to $email.</h3>";
+
+                        $keys = array_keys($products_info);
+
+                        $products_info_str = "";
+                        for ($i = 0; $i < count($keys); $i++){
+                            if ($i > 0) {
+                                $products_info_str .= ";";
+                            }
+                            $key = $keys[$i];
+                            $products_info_str .= $key
+                                . ","
+                                . $products_info[$key]["licenseType"]
+                                . ","
+                                . $products_info[$key]["quantity"]
+                                . ","
+                                . $products_info[$key]["subtotal"];
+                        }
+
+                        $url = "https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/create_license";
+                        // body:
+                        /**
+                         * "company": company id string
+                         * "products_info": products info string
+                         * "order_number": order number
+                         * "first_name": first name string
+                         * "last_name": last name string
+                         * "email": email
+                         * "timestamp": timestamp string, as seconds
+                         * "signature": all fields concatenated, signed
+                         */
+
+                        
+                        if ( !$has_physical_items ) {
+                            if ( $order->get_status() == 'processing' ) {
+                                $order->update_status('wc-completed');
                             }
                         }
                     }
