@@ -1,0 +1,38 @@
+/* Write a WordPress plugin in PHP for WooCommerce that sends a POST request to https://api.pluginlicensor.com/v1/create_license when a purchase is made. The body of the POST request needs a string parameter called "products" that is made by looping over the items in the order, and if the item has an attribute called "plugin_id", then the value of that attribute will be appended to the "products" string, followed by a comma.
+ */
+ 
+ /* This one is a little more useful, but it probably needs to be done at woocommerce_thankyou */
+
+// Add the action to send the POST request to the API
+add_action( 'woocommerce_order_status_completed', 'send_post_request_to_api' );
+
+// Send the POST request to the API
+function send_post_request_to_api( $order_id ) {
+	// Get the order
+	$order = new WC_Order( $order_id );
+
+	// Get the items in the order
+	$items = $order->get_items();
+
+	// Create the string of products
+	$products = '';
+	foreach ( $items as $item ) {
+		// Get the product ID
+		$product_id = $item['product_id'];
+
+		// Get the product
+		$product = wc_get_product( $product_id );
+
+		// Get the plugin ID
+		$plugin_id = $product->get_attribute( 'plugin_id' );
+
+		// If the plugin ID exists, append it to the string
+		if ( $plugin_id ) {
+			$products .= $plugin_id . ',';
+		}
+	}
+
+	// Remove the last comma
+	$products = rtrim( $products, ',' );
+  // ...
+  }
