@@ -196,15 +196,16 @@ if (
                             if ( is_wp_error( $response ) ){
                                 $error_message = $response->get_error_message();
                                 echo "There was an error processing your purchase: $error_message";
+                            }else{
+                                if ( !$has_physical_items ) {
+                                    if ( $order->get_status() == 'processing' ) {
+                                        $order->update_status('wc-completed');
+                                    }
+                                }
                             }
                         }
 
 
-                        if ( !$has_physical_items ) {
-                            if ( $order->get_status() == 'processing' ) {
-                                $order->update_status('wc-completed');
-                            }
-                        }
                     }
                 }
             }
