@@ -38,16 +38,36 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             // Actions.
             add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
 
-            add_action('woocommerce_check_cart_items', 'pluginlicensor_validate_cart');
+                add_action('woocommerce_check_cart_items', 'pluginlicensor_validate_cart');
         }
 
         function pluginlicensor_validate_cart() {
             $products_info = array();
-            foreach (WC()->cart->cart_contents as $cart_content_product) {
-                // validate cart
-                $plugin_id = $cart_content_product['data']
-                if ( array_key_exists())
-            }
+
+            foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+                $product = $cart_item['data'];
+                $quantity = $cart_item['quantity'];
+                $price = WC()->cart->get_product_price( $product );
+                $subtotal = WC()->cart->get_product_subtotal( $product, $cart_item['quantity'] );
+                // Anything related to $product, check $product tutorial
+                
+                $plugin_id = $product->get_attribute( 'plugin_licensor_id' );
+                if ($plugin_id) {
+                    $license_type = $product->get_attribute('license_type');
+                    if (array_key_exists($plugin_id, $products_info)){
+                        if ($subtotal > 0 || $products_info[$plugin_id]['subtotal'] > 0 || $license_type != $products_info[$plugin_id]['license_type']) {
+                            wc_add_notice(sprintf('<strong>You must not purchase different license types for the same plugin</strong>'), 'error');
+                        }
+                        // nothing else needs to be done if the array key exists
+                        // this is just to show the error if needed
+                    }else{
+                        $products_info[$plugin_id] = array(
+                            "subtotal" => $subtotal,
+                            "license_type" => $license_type
+                        );
+                    }
+                }
+             }
         }
 
         /**
