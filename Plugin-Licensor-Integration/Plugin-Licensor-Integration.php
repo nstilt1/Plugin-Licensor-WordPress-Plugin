@@ -1,4 +1,11 @@
 <?php
+/**
+ * Plugin Licensor Integration.
+ *
+ * @package  WC_Plugin_Licensor_Integration
+ * @category Integration
+ * @author   Noah Stiltner
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
@@ -11,71 +18,66 @@ if (
     in_array( $plugin_path, wp_get_active_and_valid_plugins() )
     || in_array( $plugin_path, wp_get_active_network_plugins() )
 ) {
-/**
- * Plugin Licensor Integration.
- *
- * @package  WC_Plugin_Licensor_Integration
- * @category Integration
- * @author   Noah Stiltner
- */
-if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
-    class WC_Plugin_Licensor_Integration extends WC_Integration {
-        /**
-         * Init and hook in the integration.
-         */
-        public function __construct() {
-            global $woocommerce;
-            $this->id                 = 'plugin-licensor-integration';
-            $this->method_title       = __( 'Plugin Licensor', 'plugin-licensor-integration' );
-            $this->method_description = __( 'Integrate your store with Plugin Licensor', 'plugin-licensor-integration' );
-            // Load the settings.
-            $this->init_form_fields();
-            $this->init_settings();
-            // Define user set variables.
-            $this->private_key          = $this->get_option( 'private_key' );
-            $this->company_id = $this->get_option( 'company_id' );
-            $this->debug            = $this->get_option( 'debug' );
-            // Actions.
-            add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
+
+    if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
+        class WC_Plugin_Licensor_Integration extends WC_Integration {
+            /**
+             * Init and hook in the integration.
+             */
+            public function __construct() {
+                global $woocommerce;
+                $this->id                 = 'plugin-licensor-integration';
+                $this->method_title       = __( 'Plugin Licensor', 'plugin-licensor-integration' );
+                $this->method_description = __( 'Integrate your store with Plugin Licensor', 'plugin-licensor-integration' );
+                // Load the settings.
+                $this->init_form_fields();
+                $this->init_settings();
+                // Define user set variables.
+                $this->private_key          = $this->get_option( 'private_key' );
+                $this->company_id = $this->get_option( 'company_id' );
+                $this->debug            = $this->get_option( 'debug' );
+                // Actions.
+                add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
 
                 add_action('woocommerce_check_cart_items', 'pluginlicensor_validate_cart');
-        }
+                add_action('woocommerce_thankyou', 'plugin_licensor_payment_complete');
+            }
 
-        function pluginlicensor_validate_cart() {
-            $products_info = array();
+            function pluginlicensor_validate_cart() {
+                $products_info = array();
 
-            foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
-                $product = $cart_item['data'];
-                $quantity = $cart_item['quantity'];
-                $price = WC()->cart->get_product_price( $product );
-                $subtotal = WC()->cart->get_product_subtotal( $product, $cart_item['quantity'] );
-                // Anything related to $product, check $product tutorial
-                
-                $plugin_id = $product->get_attribute( 'plugin_licensor_id' );
-                if ($plugin_id) {
-                    $license_type = $product->get_attribute('license_type');
-                    if (array_key_exists($plugin_id, $products_info)){
-                        if ($subtotal > 0 || $products_info[$plugin_id]['subtotal'] > 0 || $license_type != $products_info[$plugin_id]['license_type']) {
-                            wc_add_notice(sprintf('<strong>You must not purchase different license types for the same plugin</strong>'), 'error');
+                foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+                    $product = $cart_item['data'];
+                    $quantity = $cart_item['quantity'];
+                    $price = WC()->cart->get_product_price( $product );
+                    $subtotal = WC()->cart->get_product_subtotal( $product, $cart_item['quantity'] );
+                    // Anything related to $product, check $product tutorial
+                    
+                    $plugin_id = $product->get_attribute( 'plugin_licensor_id' );
+                    if ($plugin_id) {
+                        $license_type = $product->get_attribute('license_type');
+                        if (array_key_exists($plugin_id, $products_info)){
+                            if ($subtotal > 0 || $products_info[$plugin_id]['subtotal'] > 0 || $license_type != $products_info[$plugin_id]['license_type']) {
+                                wc_add_notice(sprintf('<strong>You must not purchase different license types for the same plugin</strong>'), 'error');
+                            }
+                            // nothing else needs to be done if the array key exists
+                            // this is just to show the error if needed
+                        }else{
+                            $products_info[$plugin_id] = array(
+                                "subtotal" => $subtotal,
+                                "license_type" => $license_type
+                            );
                         }
-                        // nothing else needs to be done if the array key exists
-                        // this is just to show the error if needed
-                    }else{
-                        $products_info[$plugin_id] = array(
-                            "subtotal" => $subtotal,
-                            "license_type" => $license_type
-                        );
                     }
                 }
-             }
-        }
+            }
 
-        /**
-         * Communicate with the server to create licenses if needed.
-         * @param mixed $order_id
-         * @return void
-         */
-        function plugin_licensor_payment_complete( $order_id ){
+            /**
+             * Communicate with the server to create licenses if needed.
+             * @param mixed $order_id
+             * @return void
+             */
+            function plugin_licensor_payment_complete( $order_id ){
                 global $wpdb;
                 $order = wc_get_order($order_id);
                 $user = $order->get_user();
@@ -124,37 +126,37 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                         }
                     }
                 }
-        }
+            }
 
-        /**
-         * Initialize integration settings form fields.
-         */
-        public function init_form_fields() {
-            $this->form_fields = array(
-                'private_key' => array(
-                    'title'             => __( 'Private Key', 'plugin-licensor-integration' ),
-                    'type'              => 'text',
-                    'description'       => __( 'Enter your Private Key found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
-                    'desc_tip'          => true,
-                    'default'           => ''
-                ),
-                'company_id' => array(
-                    'title' => __( 'Company ID', 'plugin-licensor-integration' ),
-                    'type' => 'text',
-                    'description' => __( 'Enter your company ID found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
-                    'desc_tip' => true,
-                    'default' => ''
-                ),
-                'debug' => array(
-                    'title'             => __( 'Debug Log', 'woocommerce-integration-demo' ),
-                    'type'              => 'checkbox',
-                    'label'             => __( 'Enable logging', 'plugin-licensor-integration' ),
-                    'default'           => 'no',
-                    'description'       => __( 'Log events such as API requests', 'plugin-licensor-integration' ),
-                ),
-            );
+            /**
+             * Initialize integration settings form fields.
+             */
+            public function init_form_fields() {
+                $this->form_fields = array(
+                    'private_key' => array(
+                        'title'             => __( 'Private Key', 'plugin-licensor-integration' ),
+                        'type'              => 'text',
+                        'description'       => __( 'Enter your Private Key found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
+                        'desc_tip'          => true,
+                        'default'           => ''
+                    ),
+                    'company_id' => array(
+                        'title' => __( 'Company ID', 'plugin-licensor-integration' ),
+                        'type' => 'text',
+                        'description' => __( 'Enter your company ID found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
+                        'desc_tip' => true,
+                        'default' => ''
+                    ),
+                    'debug' => array(
+                        'title'             => __( 'Debug Log', 'woocommerce-integration-demo' ),
+                        'type'              => 'checkbox',
+                        'label'             => __( 'Enable logging', 'plugin-licensor-integration' ),
+                        'default'           => 'no',
+                        'description'       => __( 'Log events such as API requests', 'plugin-licensor-integration' ),
+                    ),
+                );
+            }
         }
-    }
     endif;
 }
 
