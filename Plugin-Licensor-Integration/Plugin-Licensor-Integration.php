@@ -165,12 +165,41 @@ if (
                          * "order_number": order number
                          * "first_name": first name string
                          * "last_name": last name string
-                         * "email": email
+                         * "email": email - this gets hashed and salted before it goes in the database
                          * "timestamp": timestamp string, as seconds
                          * "signature": all fields concatenated, signed
                          */
 
-                        
+                        $body = array(
+                            'company' => $this->company_id,
+                            'products_info' => $products_info_str,
+                            'order_number' => $order_id,
+                            'first_name' => $order->get_billing_first_name(),
+                            'last_name' => $order->get_billing_last_name(),
+                            'email' => $order->get_billing_email(),
+                            'timestamp' => time()
+                        );
+                        $to_sign = $body['company'] . $body['products_info']
+                            . $body['order_number'] . $body['first_name']
+                            . $body['last_name'] . $body['email']
+                            . $body['timestamp'];
+                        $is_success = openssl_sign($to_sign, $signature, $this->private_key, OPENSSL_ALGO_SHA256);
+                        if (!$is_success){
+                            echo "Error signing";
+                        }else{
+                            $body['signature'] = $signature;
+                            $args = array(
+                                'body' => $body,
+                            );
+
+                            $response = wp_remote_post($url, $args);
+                            if ( is_wp_error( $response ) ){
+                                $error_message = $response->get_error_message();
+                                echo "There was an error processing your purchase: $error_message";
+                            }
+                        }
+
+
                         if ( !$has_physical_items ) {
                             if ( $order->get_status() == 'processing' ) {
                                 $order->update_status('wc-completed');
