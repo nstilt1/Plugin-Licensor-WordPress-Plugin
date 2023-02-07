@@ -32,11 +32,29 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             // Actions.
             add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
 
-            add_action('woocommerce_check_cart_items', 'pluginlicensor_validate_cart');
-            add_action('woocommerce_thankyou', 'pluginlicensor_payment_complete');
+            add_action('woocommerce_check_cart_items', 'plugin_licensor_validate_cart');
+            add_action('woocommerce_thankyou', 'plugin_licensor_payment_complete');
+            add_action('woocommerce_email_order_details', 'plugin_licensor_insert_license_code');
         }
 
-        function pluginlicensor_validate_cart() {
+        /**
+         * Insert the license information into the email that is sent to the customer.
+         * @param mixed $order the order object
+         * @param mixed $admin
+         * @param mixed $plain
+         * @param mixed $email
+         * @return void
+         */
+        function plugin_licensor_insert_license_code($order, $admin, $plain, $email) {
+
+        }
+
+        /**
+         * Ensure that there aren't duplicate items in the cart that could mess up the licensing
+         * back end. If you want to interface with this API in another language, you must do the same.
+         * @return void
+         */
+        function plugin_licensor_validate_cart() {
             $products_info = array();
 
             foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
@@ -70,7 +88,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
          * @param mixed $order_id
          * @return string license code
          */
-        function pluginlicensor_get_license ( $order_id ) {
+        function plugin_licensor_get_license ( $order_id ) {
             $body = array(
                 "company" => $this->company_id,
                 "order_number" => $order_id,
