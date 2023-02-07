@@ -271,15 +271,22 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     $test_response = wp_remote_post($url, $args);
                     if ( is_wp_error($test_response) ){
                         $error_message = $test_response->get_error_message();
-                        $this->errors[] = "There was an error testing your private key : $error_message";
+                        wc_add_notice("Error 274: $error_message");
+                        $this->errors[] = "Error 274: $error_message";
                     }else{
                         $decrypt_success = openssl_private_decrypt($test_response['body'], $decrypted, $this->private_key);
                         if ($decrypt_success){
                             if ($decrypted == "Success?"){
                                 wc_add_notice("Successfully tested Private Key.", 'notice');
                             }else{
-                                
+                                $err = "Error 282: error while decrypting message. This was the response: $decrypted";
+                                wc_add_notice($err, "error");
+                                $this->errors[] = $err;
                             }
+                        }else{
+                            $err = "Error 287: error decrypting message with private key.";
+                            wc_add_notice($err, "error");
+                            $this->errors[] = $err;
                         }
                     }
                 }else{
@@ -296,7 +303,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $this->form_fields = array(
                 'private_key' => array(
                     'title'             => __( 'Private Key', 'plugin-licensor-integration' ),
-                    'type'              => 'text',
+                    'type'              => 'textarea',
                     'description'       => __( 'Enter your Private Key found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
                     'desc_tip'          => true,
                     'default'           => ''
@@ -319,8 +326,4 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
         }
     }
 endif;
-
-
-
-
 ?>
