@@ -28,6 +28,8 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             // Define user set variables.
             $this->private_key          = $this->get_option( 'private_key' );
             $this->company_id = $this->get_option( 'company_id' );
+            $this->email_message = $this->get_option( 'email_message' );
+            $this->include_software_names = $this->get_option('using_other_licensing');
             $this->debug            = $this->get_option( 'debug' );
             // Actions.
             add_action( 'woocommerce_update_options_integration_' .  $this->id, array( $this, 'process_admin_options' ) );
@@ -46,7 +48,35 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
          * @return void
          */
         function plugin_licensor_insert_license_code($order, $admin, $plain, $email) {
+            $items = $order->get_items();
+            $has_plugin = false;
+            $names = array();
+            foreach( $items as $item ) {
+                if ( $item->get_attribute( 'plugin_licensor_id' ) ) {
+                    $has_plugin = true;
+                    array_push($names, $item->get_name());
+                }
+            }
+            if ( $has_plugin ) {
+                $license_code = $this->plugin_licensor_get_license($order->id);
 
+                // check if error. a tuple would work, but so should this
+                if ($license_code[0] == "~") {
+                    wc_add_notice($license_code, 'error');
+                    $message = trim($this->email_message);
+                    if (mb_substr($message, -1) != ':') {
+                        $message .= ':';
+                    }
+                    if ($this->include_software_names) {
+                        $name_list = $names . join(', ');
+
+                        echo __("<strong>$message</strong><br><ul><li>$name_list<ul>$license_code</ul></li></ul>", 'plugin-licensor-integration');
+
+                    }else{
+                        echo __("<strong>$message</strong><br><ul><li>$license_code</li></ul>", 'plugin-licensor-integration');
+                    }
+                }
+            }
         }
 
         /**
@@ -57,12 +87,12 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
         function plugin_licensor_validate_cart() {
             $products_info = array();
 
+            // check for duplicates, throw error if needed
             foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
                 $product = $cart_item['data'];
                 $quantity = $cart_item['quantity'];
                 $price = WC()->cart->get_product_price( $product );
                 $subtotal = WC()->cart->get_product_subtotal( $product, $cart_item['quantity'] );
-                // Anything related to $product, check $product tutorial
                 
                 $plugin_id = $product->get_attribute( 'plugin_licensor_id' );
                 if ($plugin_id) {
@@ -106,16 +136,18 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     $error_message = $response->get_error_message();
                     wc_add_notice( "There was an error retrieving your license code: $error_message", 'error');
                 }else{
+                    // this might be wrong. I haven't seen what the response actually looks like to this server
                     $encrypted_license_code = $response['body'];
                     $decrypt_success = openssl_private_decrypt($encrypted_license_code, $decrypted_license, $this->private_key);
                     if ( $decrypt_success ) {
                         return $decrypted_license;
                     }else{
-                        return "Error decrypting key: $response";
+                        return "~Error decrypting key: $response";
                     }
                 }
             }else{
                 wc_add_notice('There was an error signing the Plugin Licensor POST request.', 'error');
+                return "~Error when signing Plugin Licensor POST request.";
             }
         }
 
@@ -330,6 +362,21 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     'title' => __( 'Company ID', 'plugin-licensor-integration' ),
                     'type' => 'text',
                     'description' => __( 'Enter your company ID found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
+                    'desc_tip' => true,
+                    'default' => ''
+                ),
+
+                'email_message' => array(
+                    'title' => __( 'Preface of the license in the user emails and order history', 'plugin-licensor-integration' ),
+                    'type' => 'textarea',
+                    'description' => __( 'This will show right before their license codes. There will only be one license code for any software your users buy using Plugin Licensor. If you are using another licensing service, you might want to put " for" at the end, or an equivalent word in the language your site is in.', 'plugin-licensor-integration' ),
+                    'desc_tip' => true,
+                    'default' => 'Here is your license code for our software:'
+                ),
+                'include_software_names' => array(
+                    'title' => __( 'Include software names in email?', 'plugin-licensor-integration' ),
+                    'type' => 'checkbox',
+                    'description' => __( "If you are using or planning on using other licensing services, then the user's license codes might not all be the same, and the email will now include the names of your software along with their license code IF you check this box..", 'plugin-licensor-integration'),
                     'desc_tip' => true,
                     'default' => ''
                 ),
