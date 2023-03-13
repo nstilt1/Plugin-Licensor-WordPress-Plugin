@@ -37,6 +37,71 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             add_action('woocommerce_check_cart_items', 'plugin_licensor_validate_cart');
             add_action('woocommerce_thankyou', 'plugin_licensor_payment_complete');
             add_action('woocommerce_email_order_details', 'plugin_licensor_insert_license_code');
+            add_action('show_user_profile', 'plugin_licensor_profile_licenses');
+        }
+
+        function plugin_licensor_profile_licenses( $user ) {
+            ?>
+            <h3><?php _e( 'Licenses', 'plugin-licensor-integration' ); ?></h3>
+            <table class='form-table'>
+                <tr>
+                    <th><label for='licenses'><?php _e( 'Licenses', 'plugin-licensor-integration' ); ?></label></th>
+                    <td>
+                        <?php 
+
+                        // get license code. There's probably a better way to 
+                        // do this, but each user should only have one license code
+                        $uid = get_current_user_id();
+                        $args_0 = array(
+                            'customer_id' => $uid,
+                            'limit' => -1,
+                        );
+                        $orders = wc_get_orders($args_0);
+                        if ($orders){
+                            $found_order_id = false;
+                            $names = array();
+                            foreach( $orders as $order ) {
+                                $items = $order->get_items();
+                                $has_plugin = false;
+                                foreach( $items as $item ) {
+                                    if ( $item->get_attribute( 'plugin_licensor_id' ) ) {
+                                        $has_plugin = true;
+                                        array_push($names, $item->get_name());
+                                        if(!$found_order_id){
+                                            $found_order_id = $order->ID;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if( $found_order_id ){
+                                $license_code = $this->plugin_licensor_get_license($order->id);
+
+                                // check if error. a tuple or object would work, but so should this
+                                if ($license_code[0] == "~") {
+                                    // $license_code contains the error information
+                                    $message = $license_code;
+                                }else{
+                                    $message = trim($this->email_message);
+                                    if (mb_substr($message, -1) != ':') {
+                                        $message .= ':';
+                                    }
+                                    if ($this->include_software_names) {
+                                        $name_list = $names . join(', ');
+    
+                                        echo __("<strong>$message</strong><br><ul><li>$name_list<ul>$license_code</ul></li></ul>", 'plugin-licensor-integration');
+    
+                                    }else{
+                                        echo __("<strong>$message</strong><br><ul><li>$license_code</li></ul>", 'plugin-licensor-integration');
+                                    }
+                                }
+                            }
+                        }
+
+                        echo $message; ?></td>
+                    </tr>
+                    </table>
+                    <?php
         }
 
         /**
@@ -60,9 +125,12 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             if ( $has_plugin ) {
                 $license_code = $this->plugin_licensor_get_license($order->id);
 
-                // check if error. a tuple would work, but so should this
+                // check if error. a tuple or object would work, but so should this
                 if ($license_code[0] == "~") {
+                    // $license_code contains the error information
                     wc_add_notice($license_code, 'error');
+                    
+                }else{
                     $message = trim($this->email_message);
                     if (mb_substr($message, -1) != ':') {
                         $message .= ':';
@@ -201,15 +269,16 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                                     $current_2 = $products_info[$plugin_licensor_id]["licenseType"];
                                     $new_2 = $item->get_meta("license_type");
                                     $products_info[$plugin_licensor_id]["licenseType"] = ($current > $new) ? $current_2 : $new_2;
-                                }//else
-                                // If it got into an else statement here, something would be very wrong.
-                                // The licensing service will not allow a purchase to be made with different license types for
-                                // the same plugin id. A work around is to use multiple plugin ids for the same plugin, but
-                                // you shouldn't have to.
-                                // The cart validation here will attempt to prevent this from happening, but if it happens,
-                                // the customer will not receive a license code
-                                // It looks difficult to automatically cancel the transaction here, but if it is possible,
-                                // that would be advisable
+                                }/* else
+                                    If it got into an else statement here, something would be very wrong.
+                                    The licensing service will not allow a purchase to be made with 
+                                    different license types for the same plugin id. A work around is to 
+                                    use multiple plugin ids for the same plugin, but you shouldn't have to.
+                                    The cart validation (plugin_licensor_validate_cart()) will attempt to 
+                                    prevent this from happening, but if it happens, the customer will not 
+                                    receive a license code.  It looks difficult to automatically cancel the 
+                                    transaction here, but if it is possible, that would be advisable
+                                  */
                             }
                         }
                     }
@@ -221,6 +290,13 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
 
                     $keys = array_keys($products_info);
 
+                    /**
+                     * The PluginLicensor Server is expecting a string
+                     * that, for each plugin, has
+                     * [pluginID],[licenseType],[quantity],[subtotal];
+                     * all concatenated. There's probably a better way 
+                     * to send this data, but this works too
+                     */
                     $products_info_str = "";
                     for ($i = 0; $i < count($keys); $i++){
                         if ($i > 0) {
