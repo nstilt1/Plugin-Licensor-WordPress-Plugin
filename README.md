@@ -3,6 +3,47 @@ This is currently undergoing development. Just trying to connect the licensing b
 
 The license creation and fetching should work, but there could be bugs. Right now, the licensing is only implemented for any individual company to sell their own products on their store. It isn't set up for them to easily sell other companies' products on their store. It is possible, and I can make it easier to do that later, but for now, it will mainly be for individual companies or individual developers.
 
+# API Requests
+
+## Get License
+
+### Request Parameters
+
+To get license data for a user, the store will make a request with the following parameters:
+```
+{
+    company: String,
+    uuid: String,
+    timestamp: String,
+    signature: String
+}
+```
+The `signature` parameter is a signature of `company + uuid + timestamp`, and the request will not get processed if the timestamp is off by a certain margin.
+
+### Response
+The response's body will be encrypted with the store's public key (this probably isn't necessary over HTTPS, but I'm doing it anyway), and the encrypted data will be a JSON string that looks something like this:
+```
+License: {
+   code: "[license code]",
+   plugins: [
+      {
+         id: "PLUGIN ID",
+         machines: [
+            {
+               id: "machine ID",
+               computer_name: "Computer Name",
+               os: "Operating system",
+            },
+            ...
+         ],
+         max_machines: "[machine limit for the license]",
+         license_type: "[eg: subscription]",
+      },
+      ...
+   ],
+};
+```
+
 # To do:
 * ~~add license code to the automated emails that WooCommerce sends~~
 * add license code to the order information on the website
