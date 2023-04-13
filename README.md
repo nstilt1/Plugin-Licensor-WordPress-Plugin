@@ -22,31 +22,38 @@ The `signature` parameter is a signature of `company + uuid + timestamp`, and th
 
 ### Response
 The response's body will be encrypted with the store's public key (this probably isn't necessary over HTTPS, but I'm doing it anyway), and the encrypted data will be a JSON string that looks something like this:
+
+#### Update 4/12/2023:
+It appears that RSA has a limited amount of data that it can encrypt, so I will instead generate an AES key on the fly, encrypt the license data with that AES key, and then encrypt the AES key with RSA and send the data back like so:
 ```
-License: {
-   code: "[license code]",
-   plugins: [
-      {
-         id: "PLUGIN ID",
-         machines: [
+{
+    License: (AES encrypted) {
+        code: "[license code]",
+        plugins: [
             {
-               id: "machine ID",
-               computer_name: "Computer Name",
-               os: "Operating system",
+                id: "PLUGIN ID",
+                machines: [
+                    {
+                        id: "machine ID",
+                        computer_name: "Computer Name",
+                        os: "Operating system",
+                    },
+                    ...
+                ],
+                max_machines: "[machine limit for the license]",
+                license_type: "[eg: subscription]",
             },
             ...
-         ],
-         max_machines: "[machine limit for the license]",
-         license_type: "[eg: subscription]",
-      },
-      ...
-   ],
-};
+        ],
+    },
+    AES Key: (RSA encrypted),
+}
 ```
 
 # To do:
 * ~~add license code to the automated emails that WooCommerce sends~~
-* add license code to the order information on the website
+* add license info to the user profile on the website
+* finalize the API request to handle the 4/12/2023 adjustments
 
 # Optimizations
 ### Elliptic Curve Cryptography
