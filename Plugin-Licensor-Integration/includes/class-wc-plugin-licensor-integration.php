@@ -189,10 +189,10 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
         function plugin_licensor_get_license ( $order_id ) {
             $body = array(
                 "company" => $this->company_id,
-                "order_number" => $order_id,
+                "uuid" => implement_me!,
                 "timestamp" => time()
             );
-            $is_success = openssl_sign($body['company'] . $body['order_number'] . $body['timestamp'], $signature, OPENSSL_ALGO_SHA256);
+            $is_success = openssl_sign(hash('sha256', $body['company'] . $body['uuid'] . $body['timestamp']), $signature, OPENSSL_ALGO_SHA256);
             $body['signature'] = $signature;
             $args = array(
                 "body" => $body
@@ -204,7 +204,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     $error_message = $response->get_error_message();
                     wc_add_notice( "There was an error retrieving your license code: $error_message", 'error');
                 }else{
-                    // this might be wrong. I haven't seen what the response actually looks like to this server
+                    // this needs to be implemented with AES
                     $encrypted_license_code = $response['body'];
                     $decrypt_success = openssl_private_decrypt($encrypted_license_code, $decrypted_license, $this->private_key);
                     if ( $decrypt_success ) {
@@ -338,7 +338,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                         . $body['order_number'] . $body['first_name']
                         . $body['last_name'] . $body['email']
                         . $body['timestamp'];
-                    $is_success = openssl_sign($to_sign, $signature, $this->private_key, OPENSSL_ALGO_SHA256);
+                    $is_success = openssl_sign(hash('sha256', $to_sign), $signature, $this->private_key, OPENSSL_ALGO_SHA256);
                     if (!$is_success){
                         wc_add_notice( "There was a problem signing the Plugin Licensor POST request.", 'error');
                     }else{
@@ -383,7 +383,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                 $company = $this->company_id;
                 $test_data = "test1" . "test2";
                 $time = time();
-                $test_sign = openssl_sign($company . $test_data . $time, $signature, $this->private_key, OPENSSL_ALGO_SHA256);
+                $test_sign = openssl_sign(hash('sha256', $company . $test_data . $time), $signature, $this->private_key, OPENSSL_ALGO_SHA256);
                 if ($test_sign) {
                     $url = "https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/server_test_a";
                     $args = array(
