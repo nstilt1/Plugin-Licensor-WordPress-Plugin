@@ -40,6 +40,30 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             add_action('show_user_profile', 'plugin_licensor_profile_licenses');
         }
 
+        function plugin_licensor_display_license( $data ) {
+            $output_html = "";
+            $code = $data['code'];
+            $offline = $data['offline'];
+
+            $plugins = $license_data['plugins'];
+            $plugin_names = [];
+            foreach ( $plugins as $plugin ) {
+                $args = array(
+                    'status' => 'publish',
+                    'limit' => 1,
+                    'return' => 'ids',
+                    'attribute' => 'plugin_licensor_id',
+                    'attribute_term' => $plugin['id'],
+                )
+                $query = new WC_Product_Query( $args );
+                $product_ids = $query->get_products();
+                if ( count($product_ids) == 1 ) {
+                    array_push($plugin_names, $product_ids[0]->get_name());
+                }
+                
+            }
+        }
+
         function plugin_licensor_profile_licenses( $user ) {
             ?>
             <h3><?php _e( 'Licenses', 'plugin-licensor-integration' ); ?></h3>
@@ -187,9 +211,30 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
          * @return string license code
          */
         function plugin_licensor_get_license ( $order_id ) {
+            $order = wc_get_order( $order_id );
+            $user = $order->get_user();
+            $uuid = get_user_meta( $user->ID, 'pluginlicensor_uuid', true);
+            if ( empty( $uuid ) ) {
+                return "~Error: Empty UUID cwpli194";
+            }
+            
+            // don't do a get request if one has been done in the last 30 minutes
+
+            $last_get_request = get_user_meta( $user->ID, 'pluginlicensor_getreq', true);
+            if( !empty( $last_get_request ) || time() - (int)$last_get < 1800 ) {
+                $license_info = get_user_meta( $user->ID, 'pluginlicensor_license', true);
+                if ( empty ( $license_info ) ) {
+                    return "~Error: Empty license cwpli201";
+                }
+                $license_info = json_decode( $license_info );
+                return $license_info['code'] . $license_info['offline'];
+            }
+
+            // do a get request
+
             $body = array(
                 "company" => $this->company_id,
-                "uuid" => implement_me!,
+                "uuid" => $uuid,
                 "timestamp" => time()
             );
             $is_success = openssl_sign(hash('sha256', $body['company'] . $body['uuid'] . $body['timestamp']), $signature, OPENSSL_ALGO_SHA256);
@@ -204,14 +249,37 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     $error_message = $response->get_error_message();
                     wc_add_notice( "There was an error retrieving your license code: $error_message", 'error');
                 }else{
-                    // this needs to be implemented with AES
-                    $encrypted_license_code = $response['body'];
-                    $decrypt_success = openssl_private_decrypt($encrypted_license_code, $decrypted_license, $this->private_key);
-                    if ( $decrypt_success ) {
-                        return $decrypted_license;
-                    }else{
-                        return "~Error decrypting key: $response";
+                    $payload = $response['body'];
+
+                    $outer_obj = json_decode($payload, true);
+                    $data = $outer_obj['data'];
+                    $nonce = base64_decode($outer_obj['nonce']);
+                    $key_encrypted = base64_decode($outer_obj['key']);
+
+                    // decrypt the AES key
+                    $decrypt_success = openssl_private_decrypt($key_encrypted, $decrypted_key, $this->private_key);
+
+                    if ( !$decrypt_success ) {
+                        return "~Error decrypting response: $response";
                     }
+
+                    // decrypt data
+                    $ciphertext = substr($data, 0, -16);
+                    $tag = substr($data,-16);
+                    $associated_data = '';
+
+                    $plaintext = openssl_decrypt($ciphertext, 'aes-128-gcm', $decrypted_key, OPENSSL_RAW_DATA, $nonce, $tag, $associated_data);
+
+                    // parse the license data
+                    
+                    $license_data = json_decode($plaintext, true);
+                    $license_code = $license_data['code'];
+                    $offline_code = $license_data['offline'];
+
+                    update_user_meta( $user->ID, 'pluginlicensor_license', $plaintext );
+
+                    return $license_code . ',' . $offline_code;
+                    
                 }
             }else{
                 wc_add_notice('There was an error signing the Plugin Licensor POST request.', 'error');
@@ -228,6 +296,11 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             global $wpdb;
             $order = wc_get_order($order_id);
             $user = $order->get_user();
+
+            $uuid = wp_generate_uuid4();
+            if ( empty ( get_user_meta( $user->ID, 'pluginlicensor_uuid', true ) ) ) {
+                update_user_meta ( $user->ID, 'pluginlicensor_uuid', $uuid );
+            }
 
             $has_physical_items = false;
             $has_plugins = false;
@@ -327,6 +400,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
 
                     $body = array(
                         'company' => $this->company_id,
+                        'uuid' => $uuid,
                         'products_info' => $products_info_str,
                         'order_number' => $order_id,
                         'first_name' => $order->get_billing_first_name(),
@@ -440,6 +514,13 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     'description' => __( 'Enter your company ID found in the Plugin Licensor console.', 'plugin-licensor-integration' ),
                     'desc_tip' => true,
                     'default' => ''
+                ),
+                'share_email_addresses' => array(
+                    'title' => __( 'Share Email Addresses', 'plugin-licensor-integration' ),
+                    'type' => 'checkbox',
+                    'description' => __( 'Optionally share email addresses with Plugin Licensor. Sharing these will allow us to do some analysis on purchase data. We do not sell or share email information. If you check this box, you need to include a statement in your privacy policy. There is a template for you to use.' ),
+                    'default' -> '',
+                    'label' => 'Share email addresses',
                 ),
 
                 'email_message' => array(
