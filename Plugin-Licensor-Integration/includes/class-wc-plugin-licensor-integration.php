@@ -28,6 +28,8 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             // Define user set variables.
             $this->private_key          = $this->get_option( 'private_key' );
             $this->company_id = $this->get_option( 'company_id' );
+            $this->share_customer_info = $this->get_option( 'share_customer_info') == 'yes' 
+                        || $this->get_option( 'share_customer_info') == true;
             $this->email_message = $this->get_option( 'email_message' );
             $this->include_software_names = $this->get_option('using_other_licensing');
             $this->debug            = $this->get_option( 'debug' );
@@ -40,14 +42,30 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             add_action('show_user_profile', 'plugin_licensor_profile_licenses');
         }
 
-        function plugin_licensor_display_license( $data ) {
-            $output_html = "";
+        function plugin_licensor_human_timing($time) {
+            $time = time() - $time;
+            $time = ($time <1) ? 1 : $time;
+            $minutes = intdiv($time, 60);
+            $seconds = $time % 60;
+            $result = "";
+            if ( $minutes >= 1 ) {
+                $result .= ($minutes+1) . " minutes";
+            }else if ( $seconds > 0 ) {
+                $result .= "about 1 minute";
+            }
+        }
+
+        function plugin_licensor_display_license( $data, $time_since ) {
+            $output_html = "<h1>Licenses</h1><div class='licenses'>";
             $code = $data['code'];
             $offline = $data['offline'];
-
+            $output_html .= "<p>License code: " . implode("-", str_split($code, 4));
+            $output_html .= "</p><p>This license code will work for the following plugins:</p><ul>";
+            
+            // get plugin data
             $plugins = $license_data['plugins'];
-            $plugin_names = [];
             foreach ( $plugins as $plugin ) {
+                // get plugin name
                 $args = array(
                     'status' => 'publish',
                     'limit' => 1,
@@ -58,74 +76,47 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                 $query = new WC_Product_Query( $args );
                 $product_ids = $query->get_products();
                 if ( count($product_ids) == 1 ) {
-                    array_push($plugin_names, $product_ids[0]->get_name());
+                    $output_html .= "<li>" . $product_ids[0]->get_name();
+                    $output_html .= "<ul><li>Machine Limit: <b>" . $plugin['max_machines'];
+                    $output_html .= "</b></li><li>License Type: <b>" . $plugin['license_type'];
+                    $output_html .= "</b></li><li>Machines: <ul>";
+                    $machines = $plugin['machines'];
+                    if ( count( $machines ) == 0 ) {
+                        $output_html .= "<li>No machines were registered last we checked. If this is incorrect, ";
+                        $output_html .= "you can check again in ";
+                        $output_html .= plugin_licensor_human_timing($time_since);
+                        $output_html .= "</li>";
+                    }else{
+                        foreach ( $machines as $machine ) {
+                            $output_html .= "<li>Computer name: " . $machine['computer_name'];
+                            $output_html .= "<ul><li>Machine ID: " . $machine['id'];
+                            $output_html .= "</li><li>Operating System: " . $machine['os'];
+                            $output_html .= "</li></ul></li>"
+                        }
+                    }
+                    $output_html .= "</ul></li></ul></li></ul>";
+                    return $output_html;
                 }
                 
             }
         }
 
         function plugin_licensor_profile_licenses( $user ) {
-            ?>
-            <h3><?php _e( 'Licenses', 'plugin-licensor-integration' ); ?></h3>
-            <table class='form-table'>
-                <tr>
-                    <th><label for='licenses'><?php _e( 'Licenses', 'plugin-licensor-integration' ); ?></label></th>
-                    <td>
-                        <?php 
+            $license_code = $this->plugin_licensor_get_license($user);
 
-                        // get license code. There's probably a better way to 
-                        // do this, but each user should only have one license code
-                        $uid = get_current_user_id();
-                        $args_0 = array(
-                            'customer_id' => $uid,
-                            'limit' => -1,
-                        );
-                        $orders = wc_get_orders($args_0);
-                        if ($orders){
-                            $found_order_id = false;
-                            $names = array();
-                            foreach( $orders as $order ) {
-                                $items = $order->get_items();
-                                $has_plugin = false;
-                                foreach( $items as $item ) {
-                                    if ( $item->get_attribute( 'plugin_licensor_id' ) ) {
-                                        $has_plugin = true;
-                                        array_push($names, $item->get_name());
-                                        if(!$found_order_id){
-                                            $found_order_id = $order->ID;
-                                        }
-                                    }
-                                }
-                            }
-
-                            if( $found_order_id ){
-                                $license_code = $this->plugin_licensor_get_license($order->id);
-
-                                // check if error. a tuple or object would work, but so should this
-                                if ($license_code[0] == "~") {
-                                    // $license_code contains the error information
-                                    $message = $license_code;
-                                }else{
-                                    $message = trim($this->email_message);
-                                    if (mb_substr($message, -1) != ':') {
-                                        $message .= ':';
-                                    }
-                                    if ($this->include_software_names) {
-                                        $name_list = $names . join(', ');
-    
-                                        echo __("<strong>$message</strong><br><ul><li>$name_list<ul>$license_code</ul></li></ul>", 'plugin-licensor-integration');
-    
-                                    }else{
-                                        echo __("<strong>$message</strong><br><ul><li>$license_code</li></ul>", 'plugin-licensor-integration');
-                                    }
-                                }
-                            }
-                        }
-
-                        echo $message; ?></td>
-                    </tr>
-                    </table>
-                    <?php
+            // check if error. a tuple or object would work, but so should this
+            if ($license_code[0] == "~") {
+                // $license_code contains the error information
+                $message = $license_code;
+            }else{
+                if ( strlen($license_code > 10) ) {
+                    $data = get_user_meta( $user->ID, 'pluginlicensor_license', true);
+                    $time_since_get = get_user_meta( $user->ID, 'pluginlicensor_getreq', true);
+                    echo plugin_licensor_display_license($data, $time_since_get);
+                }
+            }
+            
+            
         }
 
         /**
@@ -147,7 +138,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                 }
             }
             if ( $has_plugin ) {
-                $license_code = $this->plugin_licensor_get_license($order->id);
+                $license_code = $this->plugin_licensor_get_license($order->get_user());
 
                 // check if error. a tuple or object would work, but so should this
                 if ($license_code[0] == "~") {
@@ -207,12 +198,14 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
 
         /**
          * Get the license codes for the order
-         * @param mixed $order_id
-         * @return string license code
+         * @param mixed $user
+         * @return string license code and update 
          */
-        function plugin_licensor_get_license ( $order_id ) {
-            $order = wc_get_order( $order_id );
-            $user = $order->get_user();
+        function plugin_licensor_get_license ( $user ) {
+            //$order = wc_get_order( $order_id );
+            //$user = $order->get_user();
+
+            // don't do a get request if the user doesn't have a UUID
             $uuid = get_user_meta( $user->ID, 'pluginlicensor_uuid', true);
             if ( empty( $uuid ) ) {
                 return "~Error: Empty UUID cwpli194";
@@ -221,13 +214,15 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             // don't do a get request if one has been done in the last 30 minutes
 
             $last_get_request = get_user_meta( $user->ID, 'pluginlicensor_getreq', true);
-            if( !empty( $last_get_request ) || time() - (int)$last_get < 1800 ) {
-                $license_info = get_user_meta( $user->ID, 'pluginlicensor_license', true);
-                if ( empty ( $license_info ) ) {
-                    return "~Error: Empty license cwpli201";
+            if( !empty( $last_get_request ) ) {
+                if ( time() - (int)$last_get_request < 1800 ) {
+                    $license_info = get_user_meta( $user->ID, 'pluginlicensor_license', true);
+                    if ( empty ( $license_info ) ) {
+                        return "~Error: Empty license cwpli201";
+                    }
+                    $license_info = json_decode( $license_info );
+                    return $license_info['code'] . $license_info['offline'];
                 }
-                $license_info = json_decode( $license_info );
-                return $license_info['code'] . $license_info['offline'];
             }
 
             // do a get request
@@ -297,8 +292,10 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $order = wc_get_order($order_id);
             $user = $order->get_user();
 
-            $uuid = wp_generate_uuid4();
-            if ( empty ( get_user_meta( $user->ID, 'pluginlicensor_uuid', true ) ) ) {
+            $uuid = get_user_meta( $user->ID, 'pluginlicensor_uuid', true);
+            if ( empty ( $uuid ) ) {
+                // generate a uuid with a much smaller chance for collisions
+                $uuid = wp_generate_uuid4() . substr(microtime(false), -5);
                 update_user_meta ( $user->ID, 'pluginlicensor_uuid', $uuid );
             }
 
@@ -403,9 +400,9 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                         'uuid' => $uuid,
                         'products_info' => $products_info_str,
                         'order_number' => $order_id,
-                        'first_name' => $order->get_billing_first_name(),
-                        'last_name' => $order->get_billing_last_name(),
-                        'email' => $order->get_billing_email(),
+                        'first_name' => $this->share_customer_info ? $order->get_billing_first_name() : "Placeholder",
+                        'last_name' => $this->share_customer_info ? $order->get_billing_last_name() : "Placeholder",
+                        'email' => $this->share_customer_info ? $order->get_billing_email() : "Placeholder",
                         'timestamp' => time()
                     );
                     $to_sign = $body['company'] . $body['products_info']
@@ -515,12 +512,12 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     'desc_tip' => true,
                     'default' => ''
                 ),
-                'share_email_addresses' => array(
-                    'title' => __( 'Share Email Addresses', 'plugin-licensor-integration' ),
+                'share_customer_info' => array(
+                    'title' => __( 'Share Customer Info', 'plugin-licensor-integration' ),
                     'type' => 'checkbox',
-                    'description' => __( 'Optionally share email addresses with Plugin Licensor. Sharing these will allow us to do some analysis on purchase data. We do not sell or share email information. If you check this box, you need to include a statement in your privacy policy. There is a template for you to use.' ),
+                    'description' => __( 'Optionally share customer info with Plugin Licensor. Sharing these will allow us to do some in-house analysis on purchase data, and the anonymized results will be visible in the Plugin Licensor Dashboard in the form of interactive charts and graphs. We do not sell or share personal customer information. If you check this box, you need to include a statement in your privacy policy. There is a template for you to use.' ),
                     'default' -> '',
-                    'label' => 'Share email addresses',
+                    'label' => 'Share customer info',
                 ),
 
                 'email_message' => array(
