@@ -60,7 +60,10 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $code = $data['code'];
             $offline = $data['offline'];
             $output_html .= "<p>License code: " . implode("-", str_split($code, 4));
-            $output_html .= "</p><p>This license code will work for the following plugins:</p><ul>";
+            $output_html .= "</p><p>If you want to use the plugin(s) offline, you should use this code: ";
+            $output_html .= implode("-", str_split($code, 4)) . '-OFFLINE-' . $offline;
+            $output_html .= '</p><p>If you register your plugin with that offline license code, you might not be able to remove it from the license.';
+            $output_html .= "</p><p>The license code will work for the following plugins:</p><ul>";
             
             // get plugin data
             $plugins = $license_data['plugins'];
@@ -77,10 +80,11 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                 $product_ids = $query->get_products();
                 if ( count($product_ids) == 1 ) {
                     $output_html .= "<li>" . $product_ids[0]->get_name();
-                    $output_html .= "<ul><li>Machine Limit: <b>" . $plugin['max_machines'];
-                    $output_html .= "</b></li><li>License Type: <b>" . $plugin['license_type'];
-                    $output_html .= "</b></li><li>Machines: <ul>";
+                    $output_html .= "<ul></li><li>License Type: <b>" . $plugin['license_type'];
+                    $output_html .= "</b></li><li>Machine Limit: <b>" . $plugin['max_machines'];
                     $machines = $plugin['machines'];
+                    $output_html .= '/' . count($machines);
+                    $output_html .= "</b></li><li>Machines: <ul>";
                     if ( count( $machines ) == 0 ) {
                         $output_html .= "<li>No machines were registered last we checked. If this is incorrect, ";
                         $output_html .= "you can check again in ";
@@ -93,6 +97,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                             $output_html .= "</li><li>Operating System: " . $machine['os'];
                             $output_html .= "</li></ul></li>"
                         }
+                        $output_html .= "<p>The machine list can only be updated once every 30 minutes.<p>"
                     }
                     $output_html .= "</ul></li></ul></li></ul>";
                     return $output_html;
@@ -224,6 +229,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                     return $license_info['code'] . $license_info['offline'];
                 }
             }
+            update_user_meta( $user->ID, 'pluginlicensor_getreq', time());
 
             // do a get request
 
