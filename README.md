@@ -3,6 +3,17 @@ This is currently undergoing development. Just trying to connect the licensing b
 
 The license creation and fetching should work, but there could be bugs. Right now, the licensing is only implemented for any individual company to sell their own products on their store. It isn't set up for them to easily sell other companies' products on their store. It is possible, and I can make it easier to do that later, but for now, it will mainly be for individual companies or individual developers.
 
+# To do:
+* Create the API call for `create_company` that will be used to register the stores
+    * Status: in progress. Should be finished by 4/23/2023.
+* Implement the `create_company` API call
+* Create an API call for `create_plugin` that will hold the logic for the actual licenses
+* Implement the `create_plugin` API call with a form in the WordPress Plugin
+* ~~add license code to the automated emails that WooCommerce sends~~
+* ~~add license info to the user profile on the website~~
+* ~~finalize the API request to handle the 4/12/2023 adjustments~~
+
+
 # API Requests
 
 ## Get License
@@ -50,10 +61,6 @@ It appears that RSA has a limited amount of data that it can encrypt, so I will 
 }
 ```
 
-# To do:
-* ~~add license code to the automated emails that WooCommerce sends~~
-* add license info to the user profile on the website
-* finalize the API request to handle the 4/12/2023 adjustments
 
 # Optimizations
 ### Elliptic Curve Cryptography
