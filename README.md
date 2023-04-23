@@ -34,7 +34,7 @@ To register your store, these are the required steps and parameters. You might n
       "store_name": "Your Store's name",
    },
    "nonce": "the nonce used for the AES encrypted 'data' parameter",
-   "key" (RSA encrypted): "You will need to encrypt the AES key used to encrypt the 'data' parameter with the Plugin Licensor public key. It will be added soon",
+   "key" (RSA encrypted): "You will need to encrypt the AES key used to encrypt the 'data' parameter with the Plugin Licensor public key.",
    "timestamp": "The time since Epoch in seconds.",
 }
 ```
