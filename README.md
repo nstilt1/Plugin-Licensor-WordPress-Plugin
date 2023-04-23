@@ -24,8 +24,6 @@ To register your store, these are the required steps and parameters. You might n
 
 1. Generate a 2048-bit RSA key pair. Store the private key somewhere and the public key needs to be sent in this request.
 * Must be a PEM encoded key, and the public key should have this header: `-----BEGIN PUBLIC KEY-----`.
-2. After completing the request, the API will respond with your Company ID. You will need to hang on to that for every other API request.
-
 ```
 {
    "data" (AES encrypted): {
@@ -41,6 +39,7 @@ To register your store, these are the required steps and parameters. You might n
 }
 ```
 
+2. After completing the request, the API will respond with your Company ID. You will need to hang on to that for every other API request.
 ### Response
 
 The response from registering the store will be like so:
