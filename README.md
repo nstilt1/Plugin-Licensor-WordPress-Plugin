@@ -4,8 +4,8 @@ This is currently undergoing development. Just trying to connect the licensing b
 The license creation and fetching should work, but there could be bugs. Right now, the licensing is only implemented for any individual company to sell their own products on their store. It isn't set up for them to easily sell other companies' products on their store. It is possible, and I can make it easier to do that later, but for now, it will mainly be for individual companies or individual developers.
 
 # To do:
-* Create the API call for `create_company` that will be used to register the stores
-    * Status: in progress. Should be finished by 4/23/2023.
+* ~~Create the API call for `create_company` that will be used to register the stores~~
+    * Status: function has been deployed. There could be some runtime errors.
 * Implement the `create_company` API call
 * Create an API call for `create_plugin` that will hold the logic for the actual licenses
 * Implement the `create_plugin` API call with a form in the WordPress Plugin
@@ -15,6 +15,45 @@ The license creation and fetching should work, but there could be bugs. Right no
 
 
 # API Requests
+
+## Register your store
+https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/create_company
+### Request Parameters
+
+To register your store, these are the required steps and parameters. You might notice that I have a thing for encryption.
+
+1. Generate a 2048-bit RSA key pair. Store the private key somewhere and the public key needs to be sent in this request.
+* Must be a PEM encoded key, and the public key should have this header: `-----BEGIN PUBLIC KEY-----`.
+2. After completing the request, the API will respond with your Company ID. You will need to hang on to that for every other API request.
+
+```
+{
+   "data" (AES encrypted): {
+      "key": "your 2048-bit public key goes here",
+      "user_first_name": "your first name",
+      "user_last_name": "your last name",
+      "user_discord": "Your discord handle, because email is soooo last decade.",
+      "store_name": "Your Store's name",
+   },
+   "nonce": "the nonce used for the AES encrypted 'data' parameter",
+   "key" (RSA encrypted): "You will need to encrypt the AES key used to encrypt the 'data' parameter with the Plugin Licensor public key. It will be added soon",
+   "timestamp": "The time since Epoch in seconds.",
+}
+```
+
+### Response
+
+The response from registering the store will be like so:
+
+```
+{
+   "data" (AES encrypted): {
+      "company_id": "Your company ID for Plugin Licensor. Keep track of it or else you'll have trouble using the service.",
+   },
+   "key" (RSA encrypted): "This is the AES key, and it was encrypted with the public key that you sent us.",
+   "nonce": "This is the nonce used to encrypt the 'data' parameter",
+}
+```
 
 ## Get License
 
