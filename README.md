@@ -4,6 +4,8 @@ This is currently undergoing development. Just trying to connect the licensing b
 The license creation and fetching should work, but there could be bugs. Right now, the licensing is only implemented for any individual company to sell their own products on their store. It isn't set up for them to easily sell other companies' products on their store. It is possible, and I can make it easier to do that later, but for now, it will mainly be for individual companies or individual developers.
 
 # To do:
+* Rewrite `create_license` API method in a more object-oriented way, make user info completely optional, make it encrypted
+   * Status: started a few days ago, should be done soon
 * ~~Create the API call for `create_company` that will be used to register the stores~~
     * Status: function has been deployed. There could be some runtime errors.
 * Implement the `create_company` API call
