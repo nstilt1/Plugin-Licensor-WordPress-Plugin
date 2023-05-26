@@ -549,6 +549,54 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                 ),
             );
         }
+
+        function plugin_licensor_build_request($data) {
+            $plugin_licensor_pubkey = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoslfS6C+oL3/r+1Qc2IM\nn5WONSL1zvxEb6UsZxn1CQx1QH3Hcs4EjjbBANL7FqI8CU4od5hGUB6HSG9+9Ovw\nLecfuzefiQTdIlusG9KTLgLmUIEeOw8cgvmI/RxS1nlaEntH6tJUmQ7qQfw1vpX5\nxgJzBquovJhKLqlv55jiZcdowFvcBw51/IRPTiDMtl20R2M+ph5LhD4bg5A1Inj3\nSnovZqAyGNV8T+16b1e2nV6ISP//yAjCGviHW/SKzVVlBytNR/t8APLbtHTakG2O\nj6nnMm6USGM0lavkB6f7cObc4wY2EbKOxh6rY8gNVmoGbAIQ7H7nTH2Z53OTc8nT\nsQIDAQAB\n-----END PUBLIC KEY-----";
+            $aesKey = openssl_random_pseudo_bytes(16);
+            $nonce = openssl_random_pseudo_bytes(12);
+            $plugin_licensor_key = openssl_pkey_get_public($plugin_licensor_pubkey);
+            $ciphertext = openssl_encrypt(json_encode($data), 'aes-128-gcm', $aesKey, OPENSSL_RAW_DATA, $nonce, $tag);
+
+            openssl_public_encrypt($aesKey, $encryptedAesKey, $plugin_licensor_key);
+
+            $body = array(
+                "data" => base64_encode($ciphertext . $tag),
+                "nonce" => base64_encode($nonce),
+                "key" => base64_encode($encryptedAesKey),
+                "timestamp" => strval(time())
+            );
+            $contents = $body['data'] . $body['nonce'] . $body['key'] . $body['timestamp'];
+            $private_key = openssl_pkey_get_private($this->private_key);
+            $signed = openssl_sign($contents, $signature, $private_key, OPENSSL_ALGO_SHA256);
+            $signature = base64_encode($signature);
+
+            $body['signature'] = $signature;
+            return $body;
+        }
+
+        function plugin_licensor_extract_response($response) {
+            $plugin_licensor_pubkey = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoslfS6C+oL3/r+1Qc2IM\nn5WONSL1zvxEb6UsZxn1CQx1QH3Hcs4EjjbBANL7FqI8CU4od5hGUB6HSG9+9Ovw\nLecfuzefiQTdIlusG9KTLgLmUIEeOw8cgvmI/RxS1nlaEntH6tJUmQ7qQfw1vpX5\nxgJzBquovJhKLqlv55jiZcdowFvcBw51/IRPTiDMtl20R2M+ph5LhD4bg5A1Inj3\nSnovZqAyGNV8T+16b1e2nV6ISP//yAjCGviHW/SKzVVlBytNR/t8APLbtHTakG2O\nj6nnMm6USGM0lavkB6f7cObc4wY2EbKOxh6rY8gNVmoGbAIQ7H7nTH2Z53OTc8nT\nsQIDAQAB\n-----END PUBLIC KEY-----";
+            $outer = json_decode($response, true);
+            $signed_stuff = $outer['data'] . $outer['nonce'] . $outer['key'] . $outer['timestamp'];
+            $verified = openssl_verify($signed_stuff, base64_decode($outer['signature']), $plugin_licensor_pubkey, OPENSSL_ALGO_SHA256);
+            if ($verified == 0){
+                echo 'plugin licensor signature failed';
+                return 0;
+            }
+            // decrypt request
+            $private_key = openssl_pkey_get_private($this->private_key);
+            if (!openssl_private_decrypt(base64_decode($outer['key']), $decrypted_aes_key, $private_key)) {
+                echo 'Error with private decrypt';
+                return 0;
+            }
+            $tag_length = 16;
+            $encrypted_data = base64_decode($outer['data']);
+            $decrypted = openssl_decrypt(substr($encrypted_data, 0, -$tag_length), 'aes-128-gcm', $decrypted_aes_key, OPENSSL_RAW_DATA, base64_decode($outer['nonce']), substr($encrypted_data, -$tag_length));
+            if ($decrypted == false) {
+                echo "Decrypted was false";
+            }
+            return json_decode($decrypted, true);
+        }
     }
 endif;
 ?>

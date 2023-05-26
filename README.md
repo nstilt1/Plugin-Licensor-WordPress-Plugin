@@ -4,102 +4,19 @@ This is currently undergoing development. Just trying to connect the licensing b
 The license creation and fetching should work, but there could be bugs. Right now, the licensing is only implemented for any individual company to sell their own products on their store. It isn't set up for them to easily sell other companies' products on their store. It is possible, and I can make it easier to do that later, but for now, it will mainly be for individual companies or individual developers.
 
 # To do:
-* Rewrite `create_license` API method in a more object-oriented way, make user info completely optional, make it encrypted
-   * Status: started a few days ago, should be done soon
+* ~~Rewrite `create_license` API method in a more object-oriented way, make user info completely optional, make it encrypted~~
 * ~~Create the API call for `create_company` that will be used to register the stores~~
-    * Status: function has been deployed. There could be some runtime errors.
-* Implement the `create_company` API call
-* Create an API call for `create_plugin` that will hold the logic for the actual licenses
-* Implement the `create_plugin` API call with a form in the WordPress Plugin
+* ~~Create an API call for `create_plugin` that will hold the logic for the actual licenses~~
 * ~~add license code to the automated emails that WooCommerce sends~~
 * ~~add license info to the user profile on the website~~
 * ~~finalize the API request to handle the 4/12/2023 adjustments~~
+* Implement the `create_company` API call with a form in the WordPress Plugin
+* Implement the `create_plugin` API call with a form in the WordPress Plugin
 
 
 # API Requests
-
-## Register your store
-https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/create_company
-### Request Parameters
-
-To register your store, these are the required steps and parameters. You might notice that I have a thing for encryption.
-
-1. Generate a 2048-bit RSA key pair. Store the private key somewhere and the public key needs to be sent in this request.
-* Must be a PEM encoded key, and the public key should have this header: `-----BEGIN PUBLIC KEY-----`.
-```
-{
-   "data" (AES encrypted): {
-      "key": "your 2048-bit public key goes here",
-      "user_first_name": "your first name",
-      "user_last_name": "your last name",
-      "user_discord": "Your discord handle, because email is soooo last decade.",
-      "store_name": "Your Store's name",
-   },
-   "nonce": "the nonce used for the AES encrypted 'data' parameter",
-   "key" (RSA encrypted): "You will need to encrypt the AES key used to encrypt the 'data' parameter with the Plugin Licensor public key.",
-   "timestamp": "The time since Epoch in seconds.",
-}
-```
-
-2. After completing the request, the API will respond with your Company ID. You will need to hang on to that for every other API request.
-### Response
-
-The response from registering the store will be like so:
-
-```
-{
-   "data" (AES encrypted): {
-      "company_id": "Your company ID for Plugin Licensor. Keep track of it or else you'll have trouble using the service.",
-   },
-   "key" (RSA encrypted): "This is the AES key, and it was encrypted with the public key that you sent us.",
-   "nonce": "This is the nonce used to encrypt the 'data' parameter",
-}
-```
-
-## Get License
-
-### Request Parameters
-
-To get license data for a user, the store will make a request with the following parameters:
-```
-{
-    company: String,
-    uuid: String,
-    timestamp: String,
-    signature: String
-}
-```
-The `signature` parameter is a signature of `company + uuid + timestamp`, and the request will not get processed if the timestamp is off by a certain margin.
-
-### Response
-The response's body will be encrypted with the store's public key (this probably isn't necessary over HTTPS, but I'm doing it anyway), and the encrypted data will be a JSON string that looks something like this:
-
-#### Update 4/12/2023:
-It appears that RSA has a limited amount of data that it can encrypt, so I will instead generate an AES key on the fly, encrypt the license data with that AES key, and then encrypt the AES key with RSA and send the data back like so:
-```
-{
-    License: (AES encrypted) {
-        code: "[license code]",
-        plugins: [
-            {
-                id: "PLUGIN ID",
-                machines: [
-                    {
-                        id: "machine ID",
-                        computer_name: "Computer Name",
-                        os: "Operating system",
-                    },
-                    ...
-                ],
-                max_machines: "[machine limit for the license]",
-                license_type: "[eg: subscription]",
-            },
-            ...
-        ],
-    },
-    AES Key: (RSA encrypted),
-}
-```
+You can find the API documentation at
+nstilt1.github.io
 
 
 # Optimizations
