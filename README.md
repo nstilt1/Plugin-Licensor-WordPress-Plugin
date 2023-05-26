@@ -21,7 +21,7 @@ nstilt1.github.io
 
 # Optimizations
 ### Elliptic Curve Cryptography
-There are probably a lot of optimizations that I could implement, but the single biggest one with the most improvement would be to use elliptic curve cryptography between both my server and the C++ plugin, and between the clients' servers and my server. However, this shouldn't be a big deal unless someone's website is getting loads of traffic and loads of sales. The main reason I didn't implement it is because I generally find it easier to do the encryption that is done, and it would take significantly longer for me to implement that in C++. Another point is that my Lambda functions have to fetch data from and write data to the database already, and that is also a time consuming process. I might use it in the future, but for now, what I have should be good enough.
+There are probably a lot of optimizations that I could implement, but the single biggest one with the most improvement would be to use elliptic curve cryptography between both my server, the stores, and the C++ plugin, and between the clients' servers and my server. However, this shouldn't be a big deal unless someone's website is getting loads of traffic and loads of sales. The main reason I didn't implement it is because I generally find it easier to do the encryption that is done, and it would take significantly longer for me to implement that in C++. Another point is that my Lambda functions have to fetch data from and write data to the database already, and that is also a time consuming process. I might use it in the future, but for now, what I have should be good enough.
 
 ### AWS Console Optimizations
 There are a few things that I know of that I could do to improve the service.
