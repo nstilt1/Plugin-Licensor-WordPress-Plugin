@@ -13,6 +13,7 @@ The license creation and fetching should work, but there could be bugs. Right no
 * Implement the `create_company` API call with a form in the WordPress Plugin
 * Implement the `create_plugin` API call with a form in the WordPress Plugin
 * ~~Update the implementation of `create_license` API call. The old one used a string as `products_info`, but the new implementation uses an array of objects.~~
+* Give it a test run
 
 # API Requests
 You can find the API documentation at
