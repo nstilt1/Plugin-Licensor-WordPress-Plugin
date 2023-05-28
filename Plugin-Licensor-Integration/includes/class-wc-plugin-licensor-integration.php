@@ -312,7 +312,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             if( $user ){
                 $total = 0;
                 $products_info = array();
-                $plugins_to_get = array();
+                $temp_products_info = array();
                 $has_physical_items = false;
                 
                 foreach ( $order->get_items() as $item_id => $item ) {
@@ -324,12 +324,27 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
 
                     if ( $plugin_licensor_id ) {
                         $has_plugins = true;
-                        if ( !array_key_exists($plugin_licensor_id, $products_info ) ) {
-                            $products_info[$plugin_licensor_id] = array(
-                                "subtotal" => $order->get_item_total($item, false, false),
-                                "licenseType" => $item->get_meta("license_type"),
-                                "quantity" => $item->get_quantity()
+                        // check if license type in this order exists already
+                        if ( !array_key_exists( $plugin_licensor_id, $products_info ) ) {
+                            $license_type_t = $item->get_meta("license_type");
+
+                            $product_obj = array(
+                                "id" => $plugin_licensor_id,
+                                "license_type" => $license_type_t,
                             );
+
+                            // if "quantity_as_machine_limit" is set on the item, then the quantity will be the machine limit 
+
+                            $machine_limit_selection = $item->meta_exists("quantity_as_machine_limit") ? "machine_limit" : "quantity";
+
+                            array_push($product_obj, $machine_limit_selection => $item->get_quantity());
+
+                            array_push($product_obj, "subtotal", $order->get_item_total($item, false, false));
+
+                            //array_push($product_obj, "custom_success_message" => "Implement this if you want to");
+
+                            $products_info[$plugin_licensor_id] = $product_obj;
+
                         }else{
                             if ( $products_info[$plugin_licensor_id]["licenseType"] == $item->get_meta("license_type") ){
                                 $products_info[$plugin_licensor_id]["subtotal"] += $order->get_item_total($item, false, false);
@@ -366,27 +381,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
 
                     $keys = array_keys($products_info);
 
-                    /**
-                     * The PluginLicensor Server is expecting a string
-                     * that, for each plugin, has
-                     * [pluginID],[licenseType],[quantity],[subtotal];
-                     * all concatenated. There's probably a better way 
-                     * to send this data, but this works too
-                     */
-                    $products_info_str = "";
-                    for ($i = 0; $i < count($keys); $i++){
-                        if ($i > 0) {
-                            $products_info_str .= ";";
-                        }
-                        $key = $keys[$i];
-                        $products_info_str .= $key
-                            . ","
-                            . $products_info[$key]["licenseType"]
-                            . ","
-                            . $products_info[$key]["quantity"]
-                            . ","
-                            . $products_info[$key]["subtotal"];
-                    }
+                    $products_info = array_values($products_info);
 
                     $url = "https://4qlddpu7b6.execute-api.us-east-1.amazonaws.com/v1/create_license";
                     // body:
@@ -402,41 +397,35 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
                      */
 
                     $body = array(
-                        'company' => $this->company_id,
+                        'store_id' => $this->company_id,
                         'uuid' => $uuid,
-                        'products_info' => $products_info_str,
-                        'order_number' => $order_id,
-                        'first_name' => $this->share_customer_info ? $order->get_billing_first_name() : "Placeholder",
-                        'last_name' => $this->share_customer_info ? $order->get_billing_last_name() : "Placeholder",
-                        'email' => $this->share_customer_info ? $order->get_billing_email() : "Placeholder",
-                        'timestamp' => time()
+                        'plugins' => $products_info,
+                        'order_id' => $order_id,
                     );
-                    $to_sign = $body['company'] . $body['products_info']
-                        . $body['order_number'] . $body['first_name']
-                        . $body['last_name'] . $body['email']
-                        . $body['timestamp'];
-                    $is_success = openssl_sign(hash('sha256', $to_sign), $signature, $this->private_key, OPENSSL_ALGO_SHA256);
-                    if (!$is_success){
-                        wc_add_notice( "There was a problem signing the Plugin Licensor POST request.", 'error');
-                    }else{
-                        $body['signature'] = $signature;
-                        $args = array(
-                            'body' => $body,
-                        );
+                    if ($this->share_customer_info) {
+                        $body['first_name'] = $order->get_billing_first_name();
+                        $body['last_name'] = $order->get_billing_last_name();
+                        $body['email'] = $order->get_billing_email();
+                    }
 
-                        $response = wp_remote_post($url, $args);
-                        if ( is_wp_error( $response ) ){
+                    $req = plugin_licensor_build_request( $body );
+
+                    if $req == 0 {
+                        wc_add_notice("There was a problem with the request.");
+                    }else{
+
+                        $response = wp_remote_post($url, $req);
+                        if ( is_wp_error( $response) ) {
                             $error_message = $response->get_error_message();
                             wc_add_notice( "There was an error processing your purchase: $error_message", 'error');
                         }else{
                             if ( !$has_physical_items ) {
                                 if ( $order->get_status() == 'processing' ) {
-                                    $order->update_status('wc-completed');
+                                    $order->update_status( 'wc-completed' );
                                 }
                             }
                         }
                     }
-
 
                 }
             }
@@ -557,7 +546,11 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $plugin_licensor_key = openssl_pkey_get_public($plugin_licensor_pubkey);
             $ciphertext = openssl_encrypt(json_encode($data), 'aes-128-gcm', $aesKey, OPENSSL_RAW_DATA, $nonce, $tag);
 
-            openssl_public_encrypt($aesKey, $encryptedAesKey, $plugin_licensor_key);
+            $encrypted_result = openssl_public_encrypt($aesKey, $encryptedAesKey, $plugin_licensor_key);
+            if ($encrypted_result == false) {
+                echo "Error building request";
+                return 0;
+            }
 
             $body = array(
                 "data" => base64_encode($ciphertext . $tag),
@@ -568,6 +561,9 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $contents = $body['data'] . $body['nonce'] . $body['key'] . $body['timestamp'];
             $private_key = openssl_pkey_get_private($this->private_key);
             $signed = openssl_sign($contents, $signature, $private_key, OPENSSL_ALGO_SHA256);
+            if ($signed == false) {
+                return 0;
+            }
             $signature = base64_encode($signature);
 
             $body['signature'] = $signature;
@@ -594,6 +590,7 @@ if ( ! class_exists( 'WC_Plugin_Licensor_Integration' ) ) :
             $decrypted = openssl_decrypt(substr($encrypted_data, 0, -$tag_length), 'aes-128-gcm', $decrypted_aes_key, OPENSSL_RAW_DATA, base64_decode($outer['nonce']), substr($encrypted_data, -$tag_length));
             if ($decrypted == false) {
                 echo "Decrypted was false";
+                return 0;
             }
             return json_decode($decrypted, true);
         }
