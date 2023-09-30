@@ -9,7 +9,7 @@ The next version will include:
 * either 2048-bit or 4096-bit RSA + AES-256 handshake for an initial key exchange
 * the remainder of communication will use P-384 or P-521 for ECDH and ECDSA, along with AES-256
 * a slight rewrite of some of the back-end to ensure that sensitive/cryptographic data gets zeroed out after use. I'm not a fan of any types of bleeding
-* unique encryption keys for each store's database, paired with the standard encryption that the cloud provides already
+* unique encryption keys for each store's info in the Plugin Licensor database, paired with the standard encryption that the cloud provides already
 
 The next version might include:
 * an area in the WordPress plugin with a payment mechanism, likely integrated directly with WooCommerce
